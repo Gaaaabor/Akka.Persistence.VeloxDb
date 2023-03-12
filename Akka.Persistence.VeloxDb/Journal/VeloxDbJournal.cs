@@ -5,6 +5,7 @@ using Akka.Persistence.Journal;
 using Akka.Persistence.VeloxDb.Events;
 using Akka.Persistence.VeloxDb.Extensions;
 using System.Collections.Immutable;
+using System.Text.Json;
 using VeloxDB.Client;
 
 namespace Akka.Persistence.VeloxDb.Journal
@@ -18,7 +19,7 @@ namespace Akka.Persistence.VeloxDb.Journal
         private readonly IDictionary<string, ISet<IActorRef>> _tagSubscribers = new Dictionary<string, ISet<IActorRef>>();
         private readonly HashSet<IActorRef> _allPersistenceIdSubscribers = new HashSet<IActorRef>();
 
-        private IJournalApi _journalApi;
+        private IJournalItemApi _journalApi;
 
         public IStash Stash { get; set; }
 
@@ -34,7 +35,7 @@ namespace Akka.Persistence.VeloxDb.Journal
             connectionStringParams.AddAddress(_veloxDbJournalSettings.Address);
             //connectionStringParams.ServiceName
 
-            _journalApi = ConnectionFactory.Get<IJournalApi>(connectionStringParams.GenerateConnectionString());
+            _journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionStringParams.GenerateConnectionString());
         }
 
         protected override void PreStart()
@@ -53,13 +54,13 @@ namespace Akka.Persistence.VeloxDb.Journal
 
         public override async Task<long> ReadHighestSequenceNrAsync(string persistenceId, long fromSequenceNr)
         {
-            long highestSequenceNumber = await _journalApi!.GetHighestSequenceNumberAsync(persistenceId, fromSequenceNr);
+            long highestSequenceNumber = _journalApi!.GetHighestSequenceNumber(persistenceId, fromSequenceNr);
             if (highestSequenceNumber <= 0)
             {
                 NotifyNewPersistenceIdAdded(persistenceId);
             }
 
-            return highestSequenceNumber;
+            return await Task.FromResult(highestSequenceNumber);
         }
 
         public override async Task ReplayMessagesAsync(
@@ -72,7 +73,20 @@ namespace Akka.Persistence.VeloxDb.Journal
         {
             var returnedItems = 0L;
 
-            var messages = await _journalApi!.GetMessagesRangeAsync(persistenceId, fromSequenceNr, toSequenceNr, pageSize: 100);
+            var result = _journalApi!.GetMessagesRange(persistenceId, fromSequenceNr, toSequenceNr, _veloxDbJournalSettings.ReplayMaxMessageCount);
+            if (result is null)
+            {
+                await Task.CompletedTask;
+                return;
+            }
+
+            var messages = JsonSerializer.Deserialize<List<JournalItem>>(result);
+            if (messages is null)
+            {
+                await Task.CompletedTask;
+                return;
+            }
+
             foreach (var message in messages)
             {
                 if (returnedItems >= max)
@@ -89,17 +103,20 @@ namespace Akka.Persistence.VeloxDb.Journal
             {
                 NotifyNewPersistenceIdAdded(persistenceId);
             }
+
+            await Task.CompletedTask;
         }
 
         protected override async Task DeleteMessagesToAsync(string persistenceId, long toSequenceNr)
         {
-            // TODO: Implement
-            throw new NotImplementedException();
+            _journalApi!.DeleteMessagesTo(persistenceId, toSequenceNr);
+            await Task.CompletedTask;
         }
 
         protected override async Task<IImmutableList<Exception?>?> WriteMessagesAsync(IEnumerable<AtomicWrite> messages)
         {
             // TODO: Implement
+            //_journalApi!?.WriteMessages(messages);
             throw new NotImplementedException();
         }
 

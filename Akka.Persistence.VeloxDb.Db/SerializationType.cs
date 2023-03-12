@@ -1,4 +1,4 @@
-﻿namespace Akka.Persistence.VeloxDb.Journal
+﻿namespace Akka.Persistence.VeloxDb.Db
 {
     public enum SerializationType
     {

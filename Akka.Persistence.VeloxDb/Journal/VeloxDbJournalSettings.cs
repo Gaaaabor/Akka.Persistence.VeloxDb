@@ -8,11 +8,14 @@ namespace Akka.Persistence.VeloxDb.Journal
 
         public string Address { get; private set; }
 
+        public int ReplayMaxMessageCount { get; private set; }
+
         public static VeloxDbJournalSettings Create(Config config)
         {
             return new VeloxDbJournalSettings
             {
-                Address = config.GetString("address")
+                Address = config.GetString("address") ?? "localhost:7569",
+                ReplayMaxMessageCount = config.GetInt("peplayMaxMessageCount", 1000),
             };
         }
     }

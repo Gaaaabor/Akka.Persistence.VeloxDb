@@ -1,4 +1,5 @@
-﻿using VeloxDB.ObjectInterface;
+﻿using Akka.Persistence.VeloxDb.Db;
+using VeloxDB.ObjectInterface;
 
 namespace Akka.Persistence.VeloxDb.Journal
 {

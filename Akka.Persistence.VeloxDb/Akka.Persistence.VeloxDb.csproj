@@ -14,4 +14,8 @@
     <PackageReference Include="VeloxDB.Protocol" Version="0.2.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Akka.Persistence.VeloxDb.Db\Akka.Persistence.VeloxDb.Db.csproj" />
+  </ItemGroup>
+
 </Project>

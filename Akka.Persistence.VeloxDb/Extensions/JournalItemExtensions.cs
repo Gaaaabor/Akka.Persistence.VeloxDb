@@ -1,4 +1,5 @@
 ﻿using Akka.Actor;
+using Akka.Persistence.VeloxDb.Db;
 using Akka.Persistence.VeloxDb.Journal;
 using Newtonsoft.Json.Bson;
 using Newtonsoft.Json.Linq;
