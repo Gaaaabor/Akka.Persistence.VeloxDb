@@ -1,6 +1,5 @@
 ﻿using Akka.Actor;
 using Akka.Persistence.VeloxDb.Db;
-using Akka.Persistence.VeloxDb.Journal;
 using Newtonsoft.Json.Bson;
 using Newtonsoft.Json.Linq;
 using System.Text;
@@ -10,7 +9,7 @@ namespace Akka.Persistence.VeloxDb.Extensions
 {
     public static class JournalItemExtensions
     {
-        public static IPersistentRepresentation ToPersistent(this JournalItem journalItem, ActorSystem system)
+        public static IPersistentRepresentation ToPersistent(this JournalItemDto journalItem, ActorSystem system)
         {
             var type = Type.GetType(journalItem.PayloadType, false) ?? typeof(object);
 

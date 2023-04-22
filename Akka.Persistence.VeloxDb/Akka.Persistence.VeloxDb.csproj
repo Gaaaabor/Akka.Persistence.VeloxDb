@@ -9,6 +9,14 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="reference.conf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="reference.conf" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Akka.Persistence.Query" Version="1.4.49" />
     <PackageReference Include="VeloxDB" Version="0.2.1" />
     <PackageReference Include="VeloxDB.Protocol" Version="0.2.1" />

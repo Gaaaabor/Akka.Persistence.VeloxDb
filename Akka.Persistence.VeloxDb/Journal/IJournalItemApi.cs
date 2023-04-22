@@ -1,5 +1,4 @@
 ﻿using Akka.Persistence.VeloxDb.Db;
-using System.Collections.Immutable;
 using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Journal
@@ -18,7 +17,19 @@ namespace Akka.Persistence.VeloxDb.Journal
 
         [DbAPIOperation]
         void DeleteMessagesTo(string persistenceId, long toSequenceNr);
-        
+
+        [DbAPIOperation]
+        void DeleteMessagesTo(string persistenceId, long fromSequenceNr, long toSequenceNr);
+
+        [DbAPIOperation]
+        void UpdateJournalItem(long id, JournalItemDto journalItemDto);
+
+        [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
+        string ReplayTaggedMessages(string tag, long fromOffset, long toOffset, long max);
+
+        [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
+        string GetPersistenceIds();
+
         //[DbAPIOperation]
         //void WriteMessages(IEnumerable<AtomicWrite> messages);
     }

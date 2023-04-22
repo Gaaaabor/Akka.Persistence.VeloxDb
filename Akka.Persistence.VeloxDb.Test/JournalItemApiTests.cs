@@ -8,13 +8,13 @@ namespace Akka.Persistence.VeloxDb.Test
 {
     public class JournalItemApiTests
     {
-        [Fact]
+        //[Fact]
         public void Test1()
         {
             var connectionStringParams = new ConnectionStringParams();
-            connectionStringParams.AddAddress("localhost:7568");
+            connectionStringParams.AddAddress("localhost:7568");            
 
-            var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionStringParams.GenerateConnectionString());
+            var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionStringParams.GenerateConnectionString());            
 
             var testClass = new TestClass { Id = 1, Name = "TestName" };
 

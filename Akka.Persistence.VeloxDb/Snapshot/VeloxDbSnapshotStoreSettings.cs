@@ -1,19 +1,18 @@
 ﻿using Akka.Configuration;
+using Akka.Persistence.VeloxDb;
 
 namespace Akka.Persistence.VeloxDb.Snapshot
 {
-    public class VeloxDbSnapshotStoreSettings
+    public record VeloxDbSnapshotStoreSettings(string Address, int ReplayMaxMessageCount) : IVeloxDbSettings
     {
         public const string SnapshotStoreConfigPath = "akka.persistence.snapshot-store.veloxdb";
 
-        public string? Address { get; private set; }
-
         public static VeloxDbSnapshotStoreSettings Create(Config config)
         {
-            return new VeloxDbSnapshotStoreSettings
-            {
-                Address = config.GetString("address")
-            };
+            var address = config.GetString("address");
+            var replayMaxMessageCount = config.GetInt("replayMaxMessageCount", 1000);
+
+            return new VeloxDbSnapshotStoreSettings(address, replayMaxMessageCount);
         }
     }
 }

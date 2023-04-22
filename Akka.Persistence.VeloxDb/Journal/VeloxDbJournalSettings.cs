@@ -1,22 +1,18 @@
 ﻿using Akka.Configuration;
+using Akka.Persistence.VeloxDb;
 
 namespace Akka.Persistence.VeloxDb.Journal
 {
-    public record VeloxDbJournalSettings : IVeloxDbJournalSettings
+    public record VeloxDbJournalSettings(string Address, int ReplayMaxMessageCount) : IVeloxDbSettings
     {
         public const string JournalConfigPath = "akka.persistence.journal.veloxdb";
 
-        public string Address { get; private set; }
-
-        public int ReplayMaxMessageCount { get; private set; }
-
         public static VeloxDbJournalSettings Create(Config config)
         {
-            return new VeloxDbJournalSettings
-            {
-                Address = config.GetString("address") ?? "localhost:7569",
-                ReplayMaxMessageCount = config.GetInt("peplayMaxMessageCount", 1000),
-            };
+            var address = config.GetString("address");
+            var replayMaxMessageCount = config.GetInt("replayMaxMessageCount", 1000);
+
+            return new VeloxDbJournalSettings(address, replayMaxMessageCount);
         }
     }
 }

@@ -2,6 +2,7 @@
 {
     public class JournalItemDto
     {
+        public long Id { get; set; }
         public long Ordering { get; set; }
         public string PersistenceId { get; set; }
         public long SequenceNumber { get; set; }
@@ -13,5 +14,9 @@
         public string PayloadType { get; set; }
         public string Tags { get; set; }
         public string WriterGuid { get; set; }
+        public string GroupKey { get; set; }
+        public string Type { get; set; }
+        public string DocumentType { get; set; }
+        public string Tag { get; set; }
     }
 }

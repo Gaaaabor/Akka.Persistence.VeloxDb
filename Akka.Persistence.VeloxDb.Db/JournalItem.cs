@@ -38,5 +38,17 @@ namespace Akka.Persistence.VeloxDb.Journal
 
         [DatabaseProperty]
         public abstract string WriterGuid { get; set; }
+
+        [DatabaseProperty]
+        public abstract string GroupKey { get; set; }
+
+        [DatabaseProperty]
+        public abstract string Type { get; set; }
+
+        [DatabaseProperty]
+        public abstract string DocumentType { get; set; }
+
+        [DatabaseProperty]
+        public abstract string Tag { get; set; }
     }
 }

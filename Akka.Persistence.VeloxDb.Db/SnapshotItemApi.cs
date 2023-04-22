@@ -6,39 +6,48 @@ using VeloxDB.Protocol;
 namespace Akka.Persistence.VeloxDb.Db
 {
     [DbAPI]
-    public class JournalItemApi
+    public class SnapshotItemApi
     {
         [DbAPIOperation]
-        public string CreateJournalItem(ObjectModel objectModel, JournalItemDto journalItemDto)
+        public string CreateSnapshotItem(ObjectModel objectModel, SnapshotItemDto snapshotItemDto)
         {
-            var journalItem = objectModel.CreateObject<JournalItem>();
+            var snapshotItem = objectModel.CreateObject<SnapshotItem>();
 
-            journalItem.Ordering = journalItemDto.Ordering;
-            journalItem.PersistenceId = journalItemDto.PersistenceId;
-            journalItem.SequenceNumber = journalItemDto.SequenceNumber;
-            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
-            journalItem.Timestamp = journalItemDto.Timestamp;
-            journalItem.Manifest = journalItemDto.Manifest;
-            journalItem.SerializationType = journalItemDto.SerializationType;
-            journalItem.Payload = journalItemDto.Payload;
-            journalItem.PayloadType = journalItemDto.PayloadType;
-            journalItem.Tags = journalItemDto.Tags;
-            journalItem.WriterGuid = journalItemDto.WriterGuid;
-            journalItem.GroupKey = journalItemDto.GroupKey;
-            journalItem.Type = journalItemDto.Type;
-            journalItem.DocumentType = journalItemDto.DocumentType;
-            journalItem.Tag = journalItemDto.Tag;
+            snapshotItem.PersistenceId = snapshotItemDto.PersistenceId;
+            snapshotItem.SequenceNumber = snapshotItemDto.SequenceNumber;
+            snapshotItem.Timestamp = snapshotItemDto.Timestamp;
+            snapshotItem.Payload = snapshotItemDto.Payload;
+            snapshotItem.Type = snapshotItemDto.Type;
 
-            return journalItem.PersistenceId;
+            return snapshotItem.PersistenceId;
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public long GetHighestSequenceNumber(ObjectModel objectModel, string persistenceId, long fromSequenceNr)
+        public string GetLatestSnapshot(ObjectModel objectModel, string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp)
         {
-            IEnumerable<JournalItem> journalItems = objectModel.GetAllObjects<JournalItem>();
+            IEnumerable<SnapshotItem> snapshotItems = objectModel.GetAllObjects<SnapshotItem>();
 
-            var highestSequenceNumber = journalItems.Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr).Max(x => x.SequenceNumber);
-            return highestSequenceNumber;
+            var result = snapshotItems.FirstOrDefault(x =>
+                x.PersistenceId == persistenceId &&
+                minSequenceNr <= x.SequenceNumber &&
+                x.SequenceNumber <= maxSequenceNr &&
+                fromTimestamp <= x.Timestamp &&
+                x.Timestamp <= toTimestamp);
+
+            if (result is null)
+            {
+                return null;
+            }
+
+            return JsonSerializer.Serialize(new SnapshotItemDto
+            {
+                Id = result.Id,
+                Payload = result.Payload,
+                PersistenceId = result.PersistenceId,
+                SequenceNumber = result.SequenceNumber,
+                Timestamp = result.Timestamp,
+                Type = result.Type
+            });
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
@@ -77,13 +86,13 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation]
         public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long toSequenceNr)
         {
-            IEnumerable<JournalItem> journalItems = objectModel
-                .GetAllObjects<JournalItem>()
+            IEnumerable<SnapshotItem> snapshotItems = objectModel
+                .GetAllObjects<SnapshotItem>()
                 .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber <= toSequenceNr);
 
-            foreach (var journalItem in journalItems)
+            foreach (var snapshotItem in snapshotItems)
             {
-                journalItem.Delete();
+                snapshotItem.Delete();
             }
 
             objectModel.ApplyChanges();
@@ -92,13 +101,13 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation]
         public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
         {
-            IEnumerable<JournalItem> journalItems = objectModel
-                .GetAllObjects<JournalItem>()
+            IEnumerable<SnapshotItem> snapshotItems = objectModel
+                .GetAllObjects<SnapshotItem>()
                 .Where(x => x.PersistenceId == persistenceId && fromSequenceNr <= x.SequenceNumber && x.SequenceNumber <= toSequenceNr);
 
-            foreach (var journalItem in journalItems)
+            foreach (var snapshotItem in snapshotItems)
             {
-                journalItem.Delete();
+                snapshotItem.Delete();
             }
 
             objectModel.ApplyChanges();
