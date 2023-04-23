@@ -1,6 +1,6 @@
 ﻿namespace Akka.Persistence.VeloxDb.Db
 {
-    public class SnapshotItemDto
+    public class SnapshotStoreItemDto
     {
         public long Id { get; set; }
         public string PersistenceId { get; set; }

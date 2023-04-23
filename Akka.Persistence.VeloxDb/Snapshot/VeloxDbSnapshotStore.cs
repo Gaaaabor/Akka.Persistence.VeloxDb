@@ -21,7 +21,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
         }
 
         private readonly ActorSystem _actorSystem;
-        private ISnapshotStoreApi _snapshotStoreApi;
+        private ISnapshotStoreItemApi _snapshotStoreItemApi;
         private readonly VeloxDbSnapshotStoreSettings _settings;
         private readonly ILoggingAdapter _log = Context.GetLogger();
 
@@ -33,7 +33,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
                 VeloxDbPersistence.Get(Context.System).SnapshotSettings :
                 VeloxDbSnapshotStoreSettings.Create(config);
 
-            _snapshotStoreApi = VeloxDbSetup.InitSnapshotStoreApi(_settings);
+            _snapshotStoreItemApi = VeloxDbSetup.InitSnapshotStoreItemApi(_settings);
         }
 
         protected override void PreStart()
@@ -50,13 +50,13 @@ namespace Akka.Persistence.VeloxDb.Snapshot
         {
             var fromTimestamp = (criteria.MinTimestamp ?? DateTime.MinValue).Ticks;
             var toTimestamp = criteria.MaxTimeStamp.Ticks;
-            var rawSnapshot = _snapshotStoreApi.GetLatestSnapshot(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
+            var rawSnapshot = _snapshotStoreItemApi.GetLatestSnapshot(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
             if (rawSnapshot is null)
             {
                 return null;
             }
 
-            var snapshot = JsonSerializer.Deserialize<SnapshotItemDto>(rawSnapshot);
+            var snapshot = JsonSerializer.Deserialize<SnapshotStoreItemDto>(rawSnapshot);
             if (snapshot != null)
             {
                 var result = new SnapshotDocument(snapshot).ToSelectedSnapshot(_actorSystem);
@@ -92,7 +92,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         protected override async Task SaveAsync(SnapshotMetadata metadata, object snapshot)
         {
-            _snapshotStoreApi.CreateSnapshotItem(SnapshotDocument.ToDocument(metadata, snapshot, _actorSystem));
+            _snapshotStoreItemApi.CreateSnapshotItem(SnapshotDocument.ToDocument(metadata, snapshot, _actorSystem));
             await Task.CompletedTask;
 
             //await _table!.PutItemAsync(SnapshotDocument.ToDocument(metadata, snapshot, _actorSystem));
@@ -100,7 +100,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         protected override async Task DeleteAsync(SnapshotMetadata metadata)
         {
-            _snapshotStoreApi.DeleteMessagesTo(metadata.PersistenceId, metadata.SequenceNr);
+            _snapshotStoreItemApi.DeleteMessagesTo(metadata.PersistenceId, metadata.SequenceNr);
             await Task.CompletedTask;
 
             //var document = await _table!.GetItemAsync(metadata.PersistenceId, metadata.SequenceNr);
@@ -109,7 +109,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         protected override async Task DeleteAsync(string persistenceId, SnapshotSelectionCriteria criteria)
         {
-            _snapshotStoreApi.DeleteMessagesTo(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr);
+            _snapshotStoreItemApi.DeleteMessagesTo(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr);
             await Task.CompletedTask;
 
             //var filter = new QueryFilter();

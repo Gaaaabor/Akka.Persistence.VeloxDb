@@ -6,9 +6,9 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 {
     public class SnapshotDocument
     {
-        private readonly SnapshotItemDto _snapshotItem;
+        private readonly SnapshotStoreItemDto _snapshotItem;
 
-        public SnapshotDocument(SnapshotItemDto snapshotItem)
+        public SnapshotDocument(SnapshotStoreItemDto snapshotItem)
         {
             _snapshotItem = snapshotItem;
         }
@@ -31,14 +31,14 @@ namespace Akka.Persistence.VeloxDb.Snapshot
             return new SelectedSnapshot(new SnapshotMetadata(PersistenceId, SequenceNumber, new DateTime(Timestamp)), payload);
         }
 
-        public static SnapshotItemDto ToDocument(SnapshotMetadata metadata, object snapshot, ActorSystem system)
+        public static SnapshotStoreItemDto ToDocument(SnapshotMetadata metadata, object snapshot, ActorSystem system)
         {
             var type = snapshot.GetType();
             var serializer = system.Serialization.FindSerializerForType(type);
             var binaryPayload = serializer.ToBinary(snapshot);
             var payload = Encoding.UTF8.GetString(binaryPayload); // TODO: Check!!!
 
-            return new SnapshotItemDto
+            return new SnapshotStoreItemDto
             {
                 PersistenceId = metadata.PersistenceId,
                 SequenceNumber = metadata.SequenceNr,

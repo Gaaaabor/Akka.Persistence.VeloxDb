@@ -15,13 +15,13 @@ namespace Akka.Persistence.VeloxDb
             return journalApi;
         }
 
-        public static ISnapshotStoreApi InitSnapshotStoreApi(IVeloxDbSettings settings)
+        public static ISnapshotStoreItemApi InitSnapshotStoreItemApi(IVeloxDbSettings settings)
         {
             var connectionStringParams = new ConnectionStringParams();
             connectionStringParams.AddAddress(settings.Address);
 
-            var snapshotStoreApi = ConnectionFactory.Get<ISnapshotStoreApi>(connectionStringParams.GenerateConnectionString());
-            return snapshotStoreApi;
+            var snapshotStoreItemApi = ConnectionFactory.Get<ISnapshotStoreItemApi>(connectionStringParams.GenerateConnectionString());
+            return snapshotStoreItemApi;
         }
     }
 }

@@ -3,7 +3,7 @@
 namespace Akka.Persistence.VeloxDb.Db
 {
     [DatabaseClass]
-    public abstract partial class SnapshotItem : DatabaseObject
+    public abstract partial class SnapshotStoreItem : DatabaseObject
     {
         [DatabaseProperty]
         public abstract string PersistenceId { get; set; }

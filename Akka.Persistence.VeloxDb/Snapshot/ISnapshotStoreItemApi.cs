@@ -3,11 +3,11 @@ using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Snapshot
 {
-    [DbAPI(Name = "Akka.Persistence.VeloxDb.Db.ISnapshotStoreApi")]
-    public interface ISnapshotStoreApi
+    [DbAPI(Name = "Akka.Persistence.VeloxDb.Db.SnapshotStoreItemApi")]
+    public interface ISnapshotStoreItemApi
     {
         [DbAPIOperation]
-        string CreateSnapshotItem(SnapshotItemDto snapshotItemDto);
+        string CreateSnapshotItem(SnapshotStoreItemDto snapshotItemDto);
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
         string GetLatestSnapshot(string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp);

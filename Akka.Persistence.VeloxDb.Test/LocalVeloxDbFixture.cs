@@ -21,7 +21,7 @@ namespace Akka.Persistence.VeloxDb.Test
                     FileName = "dotnet",
                     Arguments = "run",
                     UseShellExecute = true,
-                    WorkingDirectory = dbPath
+                    WorkingDirectory = dbPath                    
                 }
             };
 
