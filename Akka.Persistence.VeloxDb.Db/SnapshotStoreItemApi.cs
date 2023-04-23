@@ -3,7 +3,7 @@ using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Db
 {
-    [DbAPI]
+    [DbAPI(Name = "SnapshotStoreItemApi")]
     public class SnapshotStoreItemApi
     {
         [DbAPIOperation]

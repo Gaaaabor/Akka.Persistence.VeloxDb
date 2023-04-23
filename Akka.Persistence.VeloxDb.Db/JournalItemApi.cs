@@ -4,7 +4,7 @@ using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Db
 {
-    [DbAPI]
+    [DbAPI(Name = "JournalItemApi")]
     public class JournalItemApi
     {
         [DbAPIOperation]
