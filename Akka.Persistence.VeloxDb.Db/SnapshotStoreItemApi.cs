@@ -1,5 +1,4 @@
-﻿using System.Text.Json;
-using VeloxDB.ObjectInterface;
+﻿using VeloxDB.ObjectInterface;
 using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Db
@@ -22,52 +21,43 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public string GetLatestSnapshot(ObjectModel objectModel, string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp)
+        public SnapshotStoreItemDto GetLatestSnapshot(ObjectModel objectModel, string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp)
         {
-            IEnumerable<SnapshotStoreItem> snapshotStoreItems = objectModel.GetAllObjects<SnapshotStoreItem>();
+            var snapshotStoreItem = objectModel
+                .GetAllObjects<SnapshotStoreItem>()
+                .FirstOrDefault(x =>
+                    x.PersistenceId == persistenceId &&
+                    minSequenceNr <= x.SequenceNumber &&
+                    x.SequenceNumber <= maxSequenceNr &&
+                    fromTimestamp <= x.Timestamp &&
+                    x.Timestamp <= toTimestamp);
 
-            var result = snapshotStoreItems.FirstOrDefault(x =>
-                x.PersistenceId == persistenceId &&
-                minSequenceNr <= x.SequenceNumber &&
-                x.SequenceNumber <= maxSequenceNr &&
-                fromTimestamp <= x.Timestamp &&
-                x.Timestamp <= toTimestamp);
-
-            if (result is null)
+            if (snapshotStoreItem is null)
             {
                 return null;
             }
 
-            return JsonSerializer.Serialize(new SnapshotStoreItemDto
+            return new SnapshotStoreItemDto
             {
-                Id = result.Id,
-                Payload = result.Payload,
-                PersistenceId = result.PersistenceId,
-                SequenceNumber = result.SequenceNumber,
-                Timestamp = result.Timestamp,
-                Type = result.Type
-            });
+                Id = snapshotStoreItem.Id,
+                Payload = snapshotStoreItem.Payload,
+                PersistenceId = snapshotStoreItem.PersistenceId,
+                SequenceNumber = snapshotStoreItem.SequenceNumber,
+                Timestamp = snapshotStoreItem.Timestamp,
+                Type = snapshotStoreItem.Type
+            };
         }
 
         [DbAPIOperation]
         public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long toSequenceNr)
         {
-            IEnumerable<SnapshotStoreItem> snapshotStoreItems = objectModel
-                .GetAllObjects<SnapshotStoreItem>()
-                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber <= toSequenceNr);
-
-            foreach (var snapshotItem in snapshotStoreItems)
-            {
-                snapshotItem.Delete();
-            }
-
-            objectModel.ApplyChanges();
+            DeleteMessagesTo(objectModel, persistenceId, 0, toSequenceNr);
         }
 
         [DbAPIOperation]
         public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
         {
-            IEnumerable<SnapshotStoreItem> snapshotStoreItems = objectModel
+            var snapshotStoreItems = objectModel
                 .GetAllObjects<SnapshotStoreItem>()
                 .Where(x => x.PersistenceId == persistenceId && fromSequenceNr <= x.SequenceNumber && x.SequenceNumber <= toSequenceNr);
 

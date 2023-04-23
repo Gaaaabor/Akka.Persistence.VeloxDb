@@ -1,5 +1,4 @@
 ﻿using Akka.Persistence.VeloxDb.Journal;
-using System.Text.Json;
 using VeloxDB.ObjectInterface;
 using VeloxDB.Protocol;
 
@@ -35,18 +34,19 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
         public long GetHighestSequenceNumber(ObjectModel objectModel, string persistenceId, long fromSequenceNr)
         {
-            IEnumerable<JournalItem> journalItems = objectModel.GetAllObjects<JournalItem>();
+            var highestSequenceNumber = objectModel
+                .GetAllObjects<JournalItem>()
+                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr)
+                .Max(x => x.SequenceNumber);
 
-            var highestSequenceNumber = journalItems.Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr).Max(x => x.SequenceNumber);
             return highestSequenceNumber;
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public string GetMessagesRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize)
+        public List<JournalItemDto> GetMessagesRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize)
         {
-            IEnumerable<JournalItem> journalItems = objectModel.GetAllObjects<JournalItem>();
-
-            var items = journalItems
+            var journalItems = objectModel
+                .GetAllObjects<JournalItem>()
                 .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr && x.SequenceNumber <= toSequenceNr)
                 .Take(pageSize)
                 .Select(x => new JournalItemDto
@@ -70,8 +70,7 @@ namespace Akka.Persistence.VeloxDb.Db
                 })
                 .ToList();
 
-            //return items;
-            return JsonSerializer.Serialize(items);
+            return journalItems;
         }
 
         [DbAPIOperation]
@@ -134,13 +133,12 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public string ReplayTaggedMessages(ObjectModel objectModel, string tag, long fromOffset, long toOffset, long max)
+        public List<JournalItemDto> ReplayTaggedMessages(ObjectModel objectModel, string tag, long fromOffset, long toOffset, long max)
         {
-            IEnumerable<JournalItem> journalItems = objectModel.GetAllObjects<JournalItem>();
-
             var take = max > int.MaxValue ? int.MaxValue : int.Parse(max.ToString());
 
-            var items = journalItems
+            var journalItems = objectModel
+                .GetAllObjects<JournalItem>()
                 .Where(x => x.Tag == tag && fromOffset <= x.Timestamp && x.Timestamp <= toOffset)
                 .Take(take)
                 .Select(x => new JournalItemDto
@@ -164,22 +162,20 @@ namespace Akka.Persistence.VeloxDb.Db
                 })
                 .ToList();
 
-            return JsonSerializer.Serialize(items);
+            return journalItems;
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public string GetPersistenceIds(ObjectModel objectModel)
+        public List<string> GetPersistenceIds(ObjectModel objectModel)
         {
-            IEnumerable<JournalItem> journalItems = objectModel.GetAllObjects<JournalItem>();
-
             var highestSequenceNumberPropertyName = nameof(JournalItem.HighestSequenceNumber);
 
-            var items = journalItems
+            var persistenceIds = objectModel.GetAllObjects<JournalItem>()
                 .Where(x => x.DocumentType == highestSequenceNumberPropertyName)
                 .Select(x => x.PersistenceId)
                 .ToList();
 
-            return JsonSerializer.Serialize(items);
+            return persistenceIds;
         }
     }
 }
