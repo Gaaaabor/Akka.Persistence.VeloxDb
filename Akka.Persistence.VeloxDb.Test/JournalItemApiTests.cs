@@ -8,7 +8,7 @@ namespace Akka.Persistence.VeloxDb.Test
 {
     public class JournalItemApiTests
     {
-        //[Fact]
+        [Fact]
         public void Test1()
         {
             var connectionStringParams = new ConnectionStringParams();

@@ -8,15 +8,15 @@ namespace Akka.Persistence.VeloxDb.Db
     public class SnapshotStoreItemApi
     {
         [DbAPIOperation]
-        public string CreateSnapshotItem(ObjectModel objectModel, SnapshotStoreItemDto snapshotItemDto)
+        public string CreateSnapshotItem(ObjectModel objectModel, SnapshotStoreItemDto snapshotStoreItemDto)
         {
             var snapshotStoreItem = objectModel.CreateObject<SnapshotStoreItem>();
 
-            snapshotStoreItem.PersistenceId = snapshotItemDto.PersistenceId;
-            snapshotStoreItem.SequenceNumber = snapshotItemDto.SequenceNumber;
-            snapshotStoreItem.Timestamp = snapshotItemDto.Timestamp;
-            snapshotStoreItem.Payload = snapshotItemDto.Payload;
-            snapshotStoreItem.Type = snapshotItemDto.Type;
+            snapshotStoreItem.PersistenceId = snapshotStoreItemDto.PersistenceId;
+            snapshotStoreItem.SequenceNumber = snapshotStoreItemDto.SequenceNumber;
+            snapshotStoreItem.Timestamp = snapshotStoreItemDto.Timestamp;
+            snapshotStoreItem.Payload = snapshotStoreItemDto.Payload;
+            snapshotStoreItem.Type = snapshotStoreItemDto.Type;
 
             return snapshotStoreItem.PersistenceId;
         }
@@ -49,29 +49,6 @@ namespace Akka.Persistence.VeloxDb.Db
             });
         }
 
-        [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public string GetMessagesRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize)
-        {
-            IEnumerable<SnapshotStoreItem> snapshotStoreItems = objectModel.GetAllObjects<SnapshotStoreItem>();
-
-            var items = snapshotStoreItems
-                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr && x.SequenceNumber <= toSequenceNr)
-                .Take(pageSize)
-                .Select(x => new SnapshotStoreItemDto
-                {
-                    Id = x.Id,
-                    PersistenceId = x.PersistenceId,
-                    SequenceNumber = x.SequenceNumber,
-                    Timestamp = x.Timestamp,
-                    Payload = x.Payload,
-                    Type = x.Type
-                })
-                .ToList();
-
-            //return items;
-            return JsonSerializer.Serialize(items);
-        }
-
         [DbAPIOperation]
         public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long toSequenceNr)
         {
@@ -98,25 +75,6 @@ namespace Akka.Persistence.VeloxDb.Db
             {
                 snapshotStoreItem.Delete();
             }
-
-            objectModel.ApplyChanges();
-        }
-
-        [DbAPIOperation]
-        public void UpdateJournalItem(ObjectModel objectModel, long id, JournalItemDto journalItemDto)
-        {
-            var snapshotStoreItem = objectModel.GetObject<SnapshotStoreItem>(id);
-
-            if (snapshotStoreItem is null)
-            {
-                return;
-            }
-            
-            snapshotStoreItem.PersistenceId = journalItemDto.PersistenceId;
-            snapshotStoreItem.SequenceNumber = journalItemDto.SequenceNumber;            
-            snapshotStoreItem.Timestamp = journalItemDto.Timestamp;            
-            snapshotStoreItem.Payload = journalItemDto.Payload;
-            snapshotStoreItem.Type = journalItemDto.Type;
 
             objectModel.ApplyChanges();
         }
