@@ -2,7 +2,6 @@ using Akka.Actor;
 using Akka.Persistence.Journal;
 using Akka.Persistence.VeloxDb.Db;
 using System.Collections.Immutable;
-using System.Text;
 
 namespace Akka.Persistence.VeloxDb.Journal
 {
@@ -10,13 +9,13 @@ namespace Akka.Persistence.VeloxDb.Journal
     {
         private readonly JournalItemDto _journalItem;
 
-        public string? PersistenceId => _journalItem.PersistenceId;
+        public string PersistenceId => _journalItem.PersistenceId ?? default;
         public long SequenceNumber => _journalItem.SequenceNumber;
-        public string? Manifest => _journalItem.Manifest;
-        public string? WriterGuid => _journalItem.WriterGuid;
+        public string Manifest => _journalItem.Manifest ?? default;
+        public string WriterGuid => _journalItem.WriterGuid ?? default;
         public long Timestamp => _journalItem.Timestamp;
         public long HighestSequenceNumber => _journalItem.HighestSequenceNumber;
-        public Type? Type => Type.GetType(_journalItem.Type ?? "System.Object");
+        public Type Type => Type.GetType(_journalItem.Type ?? "System.Object");
 
         public EventDocument(JournalItemDto journalItem)
         {
@@ -26,9 +25,7 @@ namespace Akka.Persistence.VeloxDb.Journal
         public IPersistentRepresentation ToPersistent(ActorSystem system)
         {
             var serializer = system.Serialization.FindSerializerFor(Type);
-
-            var binaryPayload = Encoding.UTF8.GetBytes(_journalItem.Payload); // TODO: Check!!!
-            var payload = serializer.FromBinary(binaryPayload, Type);
+            var payload = serializer.FromBinary(_journalItem.Payload ?? default, Type);
 
             return new Persistent(
                 payload ?? new object(),
@@ -49,14 +46,12 @@ namespace Akka.Persistence.VeloxDb.Journal
             if (item.Payload is Tagged tagged)
             {
                 item = item.WithPayload(tagged.Payload);
-
                 tags.AddRange(tagged.Tags);
             }
 
             var type = item.Payload.GetType();
             var serializer = system.Serialization.FindSerializerForType(type);
-            var binaryPayload = serializer.ToBinary(item.Payload);
-            var payload = Encoding.UTF8.GetString(binaryPayload); // TODO: Check!!!
+            var payload = serializer.ToBinary(item.Payload);
             var timestamp = item.Timestamp > 0 ? item.Timestamp : DateTime.UtcNow.Ticks;
 
             var docs = new List<JournalItemDto>

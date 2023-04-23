@@ -8,29 +8,34 @@ namespace Akka.Persistence.VeloxDb.Test
     {
         private readonly Process _process;
 
+        private static bool _started;
+
         public int ReplayMaxMessageCount { get; set; }
         public string Address { get; set; }
 
         public LocalVeloxDbFixture()
         {
-            string dbPath = Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName, "Akka.Persistence.VeloxDb.Db");
-            _process = new Process
-            {
-                StartInfo =
-                {
-                    FileName = "dotnet",
-                    Arguments = "run",
-                    UseShellExecute = true,
-                    WorkingDirectory = dbPath                    
-                }
-            };
-
             Address = "localhost:7568";
             ReplayMaxMessageCount = 1000;
 
-            _process.Start();
+            //string dbPath = Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.Parent.FullName, "Akka.Persistence.VeloxDb.Db");
+            //_process = new Process
+            //{
+            //    StartInfo =
+            //    {
+            //        FileName = "dotnet",
+            //        Arguments = "run",
+            //        UseShellExecute = true,
+            //        WorkingDirectory = dbPath
+            //    }
+            //};
+
+            //_process.Start();
         }
 
-        public void Dispose() => _process?.Dispose();
+        public void Dispose()
+        {
+            //_process?.Dispose();
+        }
     }
 }

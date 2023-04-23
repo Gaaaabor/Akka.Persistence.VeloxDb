@@ -13,19 +13,16 @@ namespace Akka.Persistence.VeloxDb.Journal
         long GetHighestSequenceNumber(string persistenceId, long fromSequenceNr);
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        List<JournalItemDto> GetMessagesRange(string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize);
+        List<JournalItemDto> GetJournalItems(string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize);
 
         [DbAPIOperation]
-        void DeleteMessagesTo(string persistenceId, long toSequenceNr);
-
-        [DbAPIOperation]
-        void DeleteMessagesTo(string persistenceId, long fromSequenceNr, long toSequenceNr);
+        void DeleteJournalItemsTo(string persistenceId, long fromSequenceNr, long toSequenceNr);
 
         [DbAPIOperation]
         void UpdateJournalItem(long id, JournalItemDto journalItemDto);
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        List<JournalItemDto> ReplayTaggedMessages(string tag, long fromOffset, long toOffset, long max);
+        List<JournalItemDto> GetTaggedJournalItems(string tag, long fromOffset, long toOffset, long max);
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
         List<string> GetPersistenceIds();

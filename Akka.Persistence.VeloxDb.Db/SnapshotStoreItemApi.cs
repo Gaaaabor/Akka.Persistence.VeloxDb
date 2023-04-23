@@ -3,7 +3,7 @@ using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Db
 {
-    [DbAPI(Name = "SnapshotStoreItemApi")]
+    [DbAPI]
     public class SnapshotStoreItemApi
     {
         [DbAPIOperation]
@@ -21,7 +21,7 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public SnapshotStoreItemDto GetLatestSnapshot(ObjectModel objectModel, string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp)
+        public SnapshotStoreItemDto GetLatestSnapshotItem(ObjectModel objectModel, string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp)
         {
             var snapshotStoreItem = objectModel
                 .GetAllObjects<SnapshotStoreItem>()
@@ -49,13 +49,7 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation]
-        public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long toSequenceNr)
-        {
-            DeleteMessagesTo(objectModel, persistenceId, 0, toSequenceNr);
-        }
-
-        [DbAPIOperation]
-        public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
+        public void DeleteSnapshotItemsTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
         {
             var snapshotStoreItems = objectModel
                 .GetAllObjects<SnapshotStoreItem>()

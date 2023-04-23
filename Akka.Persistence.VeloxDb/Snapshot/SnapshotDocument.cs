@@ -23,10 +23,17 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         public SelectedSnapshot ToSelectedSnapshot(ActorSystem system)
         {
-            var serializer = system.Serialization.FindSerializerForType(Type);
-            
-            var binaryPayload = Encoding.UTF8.GetBytes(_snapshotItem.Payload); // TODO: Check!!!
-            var payload = serializer.FromBinary(binaryPayload, Type);
+            object payload;
+            if (Type == typeof(string))
+            {
+                payload = _snapshotItem.Payload;
+            }
+            else
+            {
+                var serializer = system.Serialization.FindSerializerForType(Type);
+                var binaryPayload = Encoding.UTF8.GetBytes(_snapshotItem.Payload);
+                payload = serializer.FromBinary(binaryPayload, Type);
+            }
 
             return new SelectedSnapshot(new SnapshotMetadata(PersistenceId, SequenceNumber, new DateTime(Timestamp)), payload);
         }
@@ -34,9 +41,18 @@ namespace Akka.Persistence.VeloxDb.Snapshot
         public static SnapshotStoreItemDto ToDocument(SnapshotMetadata metadata, object snapshot, ActorSystem system)
         {
             var type = snapshot.GetType();
-            var serializer = system.Serialization.FindSerializerForType(type);
-            var binaryPayload = serializer.ToBinary(snapshot);
-            var payload = Encoding.UTF8.GetString(binaryPayload); // TODO: Check!!!
+
+            string payload;
+            if (type == typeof(string))
+            {
+                payload = snapshot.ToString();
+            }
+            else
+            {
+                var serializer = system.Serialization.FindSerializerForType(type);
+                var binaryPayload = serializer.ToBinary(snapshot);
+                payload = Encoding.UTF8.GetString(binaryPayload);
+            }
 
             return new SnapshotStoreItemDto
             {
@@ -44,7 +60,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
                 SequenceNumber = metadata.SequenceNr,
                 Timestamp = metadata.Timestamp.Ticks,
                 Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
-                Payload = payload
+                Payload = payload                
             };
         }
 

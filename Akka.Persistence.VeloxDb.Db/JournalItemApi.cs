@@ -1,10 +1,11 @@
 ﻿using Akka.Persistence.VeloxDb.Journal;
+using System.Text;
 using VeloxDB.ObjectInterface;
 using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Db
 {
-    [DbAPI(Name = "JournalItemApi")]
+    [DbAPI]
     public class JournalItemApi
     {
         [DbAPIOperation]
@@ -12,21 +13,17 @@ namespace Akka.Persistence.VeloxDb.Db
         {
             var journalItem = objectModel.CreateObject<JournalItem>();
 
-            journalItem.Ordering = journalItemDto.Ordering;
+            journalItem.GroupKey = journalItemDto.GroupKey;
             journalItem.PersistenceId = journalItemDto.PersistenceId;
             journalItem.SequenceNumber = journalItemDto.SequenceNumber;
-            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
-            journalItem.Timestamp = journalItemDto.Timestamp;
-            journalItem.Manifest = journalItemDto.Manifest;
-            journalItem.SerializationType = journalItemDto.SerializationType;
-            journalItem.Payload = journalItemDto.Payload;
-            journalItem.PayloadType = journalItemDto.PayloadType;
-            journalItem.Tags = journalItemDto.Tags;
-            journalItem.WriterGuid = journalItemDto.WriterGuid;
-            journalItem.GroupKey = journalItemDto.GroupKey;
-            journalItem.Type = journalItemDto.Type;
             journalItem.DocumentType = journalItemDto.DocumentType;
+            journalItem.Manifest = journalItemDto.Manifest;
+            journalItem.WriterGuid = journalItemDto.WriterGuid;
+            journalItem.Timestamp = journalItemDto.Timestamp;
+            journalItem.Type = journalItemDto.Type;
+            journalItem.Payload = Serialize(journalItemDto.Payload);
             journalItem.Tag = journalItemDto.Tag;
+            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
 
             return journalItem.PersistenceId;
         }
@@ -34,16 +31,22 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
         public long GetHighestSequenceNumber(ObjectModel objectModel, string persistenceId, long fromSequenceNr)
         {
-            var highestSequenceNumber = objectModel
+            var items = objectModel
                 .GetAllObjects<JournalItem>()
-                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr)
-                .Max(x => x.SequenceNumber);
+                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber >= fromSequenceNr);
+
+            if (items is null || !items.Any())
+            {
+                return 0;
+            }
+
+            var highestSequenceNumber = items.Max(x => x.SequenceNumber);
 
             return highestSequenceNumber;
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public List<JournalItemDto> GetMessagesRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize)
+        public List<JournalItemDto> GetJournalItems(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, int pageSize)
         {
             var journalItems = objectModel
                 .GetAllObjects<JournalItem>()
@@ -51,47 +54,27 @@ namespace Akka.Persistence.VeloxDb.Db
                 .Take(pageSize)
                 .Select(x => new JournalItemDto
                 {
-                    Id = x.Id,
-                    Ordering = x.Ordering,
+                    GroupKey = x.GroupKey,
                     PersistenceId = x.PersistenceId,
                     SequenceNumber = x.SequenceNumber,
-                    HighestSequenceNumber = x.HighestSequenceNumber,
-                    Timestamp = x.Timestamp,
-                    Manifest = x.Manifest,
-                    SerializationType = x.SerializationType,
-                    Payload = x.Payload,
-                    PayloadType = x.PayloadType,
-                    Tags = x.Tags,
-                    WriterGuid = x.WriterGuid,
-                    GroupKey = x.GroupKey,
-                    Type = x.Type,
                     DocumentType = x.DocumentType,
-                    Tag = x.Tag
+                    Manifest = x.Manifest,
+                    WriterGuid = x.WriterGuid,
+                    Timestamp = x.Timestamp,
+                    Type = x.Type,
+                    Payload = Deserialize(x.Payload),
+                    Tag = x.Tag,
+                    HighestSequenceNumber = x.HighestSequenceNumber
                 })
                 .ToList();
 
-            return journalItems;
+            return journalItems ?? new List<JournalItemDto>();
         }
 
         [DbAPIOperation]
-        public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long toSequenceNr)
+        public void DeleteJournalItemsTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
         {
-            IEnumerable<JournalItem> journalItems = objectModel
-                .GetAllObjects<JournalItem>()
-                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber <= toSequenceNr);
-
-            foreach (var journalItem in journalItems)
-            {
-                journalItem.Delete();
-            }
-
-            objectModel.ApplyChanges();
-        }
-
-        [DbAPIOperation]
-        public void DeleteMessagesTo(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
-        {
-            IEnumerable<JournalItem> journalItems = objectModel
+            var journalItems = objectModel
                 .GetAllObjects<JournalItem>()
                 .Where(x => x.PersistenceId == persistenceId && fromSequenceNr <= x.SequenceNumber && x.SequenceNumber <= toSequenceNr);
 
@@ -113,27 +96,23 @@ namespace Akka.Persistence.VeloxDb.Db
                 return;
             }
 
-            journalItem.Ordering = journalItemDto.Ordering;
+            journalItem.GroupKey = journalItemDto.GroupKey;
             journalItem.PersistenceId = journalItemDto.PersistenceId;
             journalItem.SequenceNumber = journalItemDto.SequenceNumber;
-            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
-            journalItem.Timestamp = journalItemDto.Timestamp;
-            journalItem.Manifest = journalItemDto.Manifest;
-            journalItem.SerializationType = journalItemDto.SerializationType;
-            journalItem.Payload = journalItemDto.Payload;
-            journalItem.PayloadType = journalItemDto.PayloadType;
-            journalItem.Tags = journalItemDto.Tags;
-            journalItem.WriterGuid = journalItemDto.WriterGuid;
-            journalItem.GroupKey = journalItemDto.GroupKey;
-            journalItem.Type = journalItemDto.Type;
             journalItem.DocumentType = journalItemDto.DocumentType;
+            journalItem.Manifest = journalItemDto.Manifest;
+            journalItem.WriterGuid = journalItemDto.WriterGuid;
+            journalItem.Timestamp = journalItemDto.Timestamp;
+            journalItem.Type = journalItemDto.Type;
+            journalItem.Payload = Serialize(journalItemDto.Payload);
             journalItem.Tag = journalItemDto.Tag;
+            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
 
             objectModel.ApplyChanges();
         }
 
         [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        public List<JournalItemDto> ReplayTaggedMessages(ObjectModel objectModel, string tag, long fromOffset, long toOffset, long max)
+        public List<JournalItemDto> GetTaggedJournalItems(ObjectModel objectModel, string tag, long fromOffset, long toOffset, long max)
         {
             var take = max > int.MaxValue ? int.MaxValue : int.Parse(max.ToString());
 
@@ -143,22 +122,17 @@ namespace Akka.Persistence.VeloxDb.Db
                 .Take(take)
                 .Select(x => new JournalItemDto
                 {
-                    Id = x.Id,
-                    Ordering = x.Ordering,
+                    GroupKey = x.GroupKey,
                     PersistenceId = x.PersistenceId,
                     SequenceNumber = x.SequenceNumber,
-                    HighestSequenceNumber = x.HighestSequenceNumber,
-                    Timestamp = x.Timestamp,
-                    Manifest = x.Manifest,
-                    SerializationType = x.SerializationType,
-                    Payload = x.Payload,
-                    PayloadType = x.PayloadType,
-                    Tags = x.Tags,
-                    WriterGuid = x.WriterGuid,
-                    GroupKey = x.GroupKey,
-                    Type = x.Type,
                     DocumentType = x.DocumentType,
-                    Tag = x.Tag
+                    Manifest = x.Manifest,
+                    WriterGuid = x.WriterGuid,
+                    Timestamp = x.Timestamp,
+                    Type = x.Type,
+                    Payload = Deserialize(x.Payload),
+                    Tag = x.Tag,
+                    HighestSequenceNumber = x.HighestSequenceNumber
                 })
                 .ToList();
 
@@ -176,6 +150,26 @@ namespace Akka.Persistence.VeloxDb.Db
                 .ToList();
 
             return persistenceIds;
+        }
+
+        private static byte[] Deserialize(string payload)
+        {
+            if (payload is null)
+            {
+                return null;
+            }
+
+            return Encoding.UTF8.GetBytes(payload);
+        }
+
+        private static string Serialize(byte[] payload)
+        {
+            if (payload is null)
+            {
+                return null;
+            }
+
+            return Encoding.UTF8.GetString(payload);
         }
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Akka.Persistence.VeloxDb.Test.Journal
 {
+    [Collection(VeloxDbTestCollection.Name)]
     public class VeloxDbJournalSpec : JournalSpec
     {
         public VeloxDbJournalSpec(LocalVeloxDbFixture fixture)
@@ -10,9 +11,7 @@ namespace Akka.Persistence.VeloxDb.Test.Journal
             VeloxDbPersistence.Get(Sys);
             Initialize();
         }
-
         protected override bool SupportsSerialization { get; } = false;
-
         protected override bool SupportsRejectingNonSerializableObjects { get; } = false;
     }
 }

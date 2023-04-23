@@ -43,7 +43,7 @@ namespace Akka.Persistence.VeloxDb.Snapshot
         {
             var fromTimestamp = (criteria.MinTimestamp ?? DateTime.MinValue).Ticks;
             var toTimestamp = criteria.MaxTimeStamp.Ticks;
-            var snapshot = _snapshotStoreItemApi.GetLatestSnapshot(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
+            var snapshot = _snapshotStoreItemApi.GetLatestSnapshotItem(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
             if (snapshot != null)
             {
                 var result = new SnapshotDocument(snapshot).ToSelectedSnapshot(_actorSystem);
@@ -61,13 +61,13 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         protected override async Task DeleteAsync(SnapshotMetadata metadata)
         {
-            _snapshotStoreItemApi.DeleteMessagesTo(metadata.PersistenceId, metadata.SequenceNr);
+            _snapshotStoreItemApi.DeleteSnapshotItemsTo(metadata.PersistenceId, 0, metadata.SequenceNr);
             await Task.CompletedTask;
         }
 
         protected override async Task DeleteAsync(string persistenceId, SnapshotSelectionCriteria criteria)
         {
-            _snapshotStoreItemApi.DeleteMessagesTo(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr);
+            _snapshotStoreItemApi.DeleteSnapshotItemsTo(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr);
             await Task.CompletedTask;
         }
     }

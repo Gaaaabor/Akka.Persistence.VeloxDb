@@ -2,7 +2,6 @@
 using Akka.Configuration;
 using Akka.Event;
 using Akka.Persistence.Journal;
-using Akka.Persistence.VeloxDb.Extensions;
 using Akka.Persistence.VeloxDb.Query.QueryApi;
 using Akka.Util.Internal;
 using System.Collections.Immutable;
@@ -56,7 +55,7 @@ namespace Akka.Persistence.VeloxDb.Journal
         {
             var returnedItems = 0L;
 
-            var messages = _journalApi!.GetMessagesRange(persistenceId, fromSequenceNr, toSequenceNr, _settings.ReplayMaxMessageCount);
+            var messages = _journalApi!.GetJournalItems(persistenceId, fromSequenceNr, toSequenceNr, _settings.ReplayMaxMessageCount);
             if (messages is null)
             {
                 await Task.CompletedTask;
@@ -69,8 +68,8 @@ namespace Akka.Persistence.VeloxDb.Journal
                 {
                     break;
                 }
-
-                recoveryCallback(message.ToPersistent(_actorSystem));
+                
+                recoveryCallback(new EventDocument(message).ToPersistent(_actorSystem));
 
                 returnedItems++;
             }
@@ -94,10 +93,9 @@ namespace Akka.Persistence.VeloxDb.Journal
             return await Task.FromResult(highestSequenceNumber);
         }
 
-        protected override async Task<IImmutableList<Exception?>?> WriteMessagesAsync(IEnumerable<AtomicWrite> messages)
+        protected override async Task<IImmutableList<Exception>> WriteMessagesAsync(IEnumerable<AtomicWrite> messages)
         {
-            var results = new List<Exception?>();
-
+            var results = new List<Exception>();
             var allTags = new List<string>();
 
             foreach (var atomicWrite in messages)
@@ -157,7 +155,7 @@ namespace Akka.Persistence.VeloxDb.Journal
 
         protected override async Task DeleteMessagesToAsync(string persistenceId, long toSequenceNr)
         {
-            _journalApi.DeleteMessagesTo(persistenceId, toSequenceNr);
+            _journalApi.DeleteJournalItemsTo(persistenceId, long.MinValue, toSequenceNr);
             await Task.CompletedTask;
         }
 
@@ -197,7 +195,7 @@ namespace Akka.Persistence.VeloxDb.Journal
             }
 
             var maxOrdering = 0L;
-            var journalItems = _journalApi.ReplayTaggedMessages(replay.Tag, replay.FromOffset + 1, replay.ToOffset, replay.Max);
+            var journalItems = _journalApi.GetTaggedJournalItems(replay.Tag, replay.FromOffset + 1, replay.ToOffset, replay.Max);
             if (journalItems is null)
             {
                 return await Task.FromResult(maxOrdering);
