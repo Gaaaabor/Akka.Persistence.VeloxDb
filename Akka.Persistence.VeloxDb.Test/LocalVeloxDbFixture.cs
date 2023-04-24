@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Reflection;
 
 namespace Akka.Persistence.VeloxDb.Test
 {
@@ -16,7 +17,11 @@ namespace Akka.Persistence.VeloxDb.Test
             Address = "localhost:7568";
             ReplayMaxMessageCount = 1000;
 
-            string dbPath = Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory()).Parent.Parent.Parent.Parent.FullName, "Akka.Persistence.VeloxDb.Db");
+            var assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
+            var index = Directory.GetCurrentDirectory().IndexOf(assemblyName);
+            var pathBase = Directory.GetCurrentDirectory().Substring(0, index);
+            var dbProjectPath = Path.Combine(pathBase, "Akka.Persistence.VeloxDb.Db");
+
             _process = new Process
             {
                 StartInfo =
@@ -24,7 +29,7 @@ namespace Akka.Persistence.VeloxDb.Test
                     FileName = "dotnet",
                     Arguments = "run",
                     UseShellExecute = false,
-                    WorkingDirectory = dbPath
+                    WorkingDirectory = dbProjectPath
                 }
             };
 
