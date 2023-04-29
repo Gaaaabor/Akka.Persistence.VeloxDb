@@ -1,4 +1,6 @@
-﻿namespace Akka.Persistence.VeloxDb.Db
+﻿using VeloxDB.ObjectInterface;
+
+namespace Akka.Persistence.VeloxDb.Db
 {
     public class JournalItemDto
     {
@@ -14,5 +16,6 @@
         public byte[] Payload { get; set; }
         public string Tag { get; set; }
         public long HighestSequenceNumber { get; set; }
+        public bool IsSoftDeleted { get; set; }
     }
 }

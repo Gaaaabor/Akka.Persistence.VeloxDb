@@ -102,16 +102,15 @@ namespace Akka.Persistence.VeloxDb.Query.Publishers
             switch (message)
             {
                 case ReplayedMessage replayed:
-                    var seqNr = replayed.Persistent.SequenceNr;
 
                     Buffer.Add(new EventEnvelope(
-                        offset: new Sequence(seqNr),
+                        offset: new Sequence(replayed.Persistent.SequenceNr),
                         persistenceId: PersistenceId,
-                        sequenceNr: seqNr,
+                        sequenceNr: replayed.Persistent.SequenceNr,
                         @event: replayed.Persistent.Payload,
                         timestamp: replayed.Persistent.Timestamp));
 
-                    CurrentSequenceNr = seqNr + 1;
+                    CurrentSequenceNr = replayed.Persistent.SequenceNr + 1;
                     Buffer.DeliverBuffer(TotalDemand);
                     return true;
 

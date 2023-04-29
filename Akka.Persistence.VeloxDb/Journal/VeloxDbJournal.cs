@@ -2,23 +2,16 @@
 using Akka.Configuration;
 using Akka.Event;
 using Akka.Persistence.Journal;
+using Akka.Persistence.VeloxDb.Db;
 using Akka.Persistence.VeloxDb.Query.QueryApi;
 using Akka.Util.Internal;
+using Newtonsoft.Json;
 using System.Collections.Immutable;
 
 namespace Akka.Persistence.VeloxDb.Journal
 {
     public class VeloxDbJournal : AsyncWriteJournal, IWithUnboundedStash
     {
-        public static class Events
-        {
-            public sealed class Initialized
-            {
-                public static readonly Initialized Instance = new();
-                private Initialized() { }
-            }
-        }
-
         private readonly ActorSystem _actorSystem;
         private IJournalItemApi _journalApi;
         private readonly VeloxDbJournalSettings _settings;
@@ -27,7 +20,9 @@ namespace Akka.Persistence.VeloxDb.Journal
         private readonly Dictionary<string, ISet<IActorRef>> _tagSubscribers = new();
         private readonly HashSet<IActorRef> _allPersistenceIdSubscribers = new();
 
-        public VeloxDbJournal(Config? config = null)
+        public IStash Stash { get; set; }
+
+        public VeloxDbJournal(Config config = null)
         {
             _actorSystem = Context.System;
 
@@ -38,14 +33,12 @@ namespace Akka.Persistence.VeloxDb.Journal
             _journalApi = VeloxDbSetup.InitJournalItemApi(_settings);
         }
 
-        public IStash? Stash { get; set; }
-
         protected override void PreStart()
         {
             base.PreStart();
         }
 
-        public override async Task ReplayMessagesAsync(
+        public override Task ReplayMessagesAsync(
             IActorContext context,
             string persistenceId,
             long fromSequenceNr,
@@ -53,38 +46,30 @@ namespace Akka.Persistence.VeloxDb.Journal
             long max,
             Action<IPersistentRepresentation> recoveryCallback)
         {
-            var returnedItems = 0L;
-
-            var messages = _journalApi!.GetJournalItems(persistenceId, fromSequenceNr, toSequenceNr, _settings.ReplayMaxMessageCount);
-            if (messages is null)
+            if (max <= 0 || (toSequenceNr - fromSequenceNr) < 0)
             {
-                await Task.CompletedTask;
-                return;
+                return Task.CompletedTask;
             }
 
-            foreach (var message in messages)
+            long count = 0;
+            var replayMessages = _journalApi.GetJournalItemsRange(persistenceId, fromSequenceNr, toSequenceNr);
+            foreach (var replayMessage in replayMessages)
             {
-                if (returnedItems >= max)
+                recoveryCallback(EventDocument.ToPersistent(replayMessage, _actorSystem));
+                count++;
+
+                if (count == max)
                 {
-                    break;
+                    return Task.CompletedTask;
                 }
-                
-                recoveryCallback(new EventDocument(message).ToPersistent(_actorSystem));
-
-                returnedItems++;
             }
 
-            if (returnedItems == 0)
-            {
-                NotifyNewPersistenceIdAdded(persistenceId);
-            }
-
-            await Task.CompletedTask;
+            return Task.CompletedTask;
         }
 
         public override async Task<long> ReadHighestSequenceNrAsync(string persistenceId, long fromSequenceNr)
         {
-            long highestSequenceNumber = _journalApi!.GetHighestSequenceNumber(persistenceId, fromSequenceNr);
+            long highestSequenceNumber = _journalApi.GetHighestSequenceNumber(persistenceId, fromSequenceNr);
             if (highestSequenceNumber <= 0)
             {
                 NotifyNewPersistenceIdAdded(persistenceId);
@@ -102,36 +87,77 @@ namespace Akka.Persistence.VeloxDb.Journal
             {
                 try
                 {
-                    var items = atomicWrite.Payload.AsInstanceOf<IImmutableList<IPersistentRepresentation>>();
-
-                    foreach (var persistentRepresentation in items)
-                    {
-                        if (persistentRepresentation.SequenceNr == 0)
-                        {
-                            NotifyNewPersistenceIdAdded(persistentRepresentation.PersistenceId);
-                        }
-
-                        var (documents, tags) = EventDocument.ToDocument(persistentRepresentation, _actorSystem);
-
-                        allTags.AddRange(tags);
-
-                        foreach (var document in documents)
-                        {
-                            _journalApi.CreateJournalItem(document);
-                        }
-                    }
-
-                    var highestSequenceNumbers = items
+                    var groupedPersistentRepresentations = atomicWrite.Payload
+                        .AsInstanceOf<IImmutableList<IPersistentRepresentation>>()
                         .GroupBy(x => x.PersistenceId)
-                        .Select(x => EventDocument.ToHighestSequenceNumberDocument(
-                            x.Key,
-                            x.Select(y => y.SequenceNr).OrderByDescending(y => y).FirstOrDefault())
-                        )
-                        .ToImmutableList();
+                        .ToList();
 
-                    foreach (var highestSequenceNumber in highestSequenceNumbers)
+                    ;
+
+                    foreach (var groupedPersistentRepresentation in groupedPersistentRepresentations)
                     {
-                        _journalApi.UpdateJournalItem(highestSequenceNumber.Id, highestSequenceNumber);
+                        var journalItems = new List<JournalItemDto>();
+                        foreach (var persistentRepresentation in groupedPersistentRepresentation)
+                        {
+                            var type = persistentRepresentation.Payload.GetType();
+                            var serializer = _actorSystem.Serialization.FindSerializerForType(type);
+                            var payload = serializer.ToBinary(persistentRepresentation.Payload);
+                            var timestamp = persistentRepresentation.Timestamp > 0 ? persistentRepresentation.Timestamp : DateTime.UtcNow.Ticks;
+
+                            _journalApi.CreateJournalItem(new JournalItemDto
+                            {
+                                GroupKey = EventDocument.GetEventGroupKey(persistentRepresentation.PersistenceId),
+                                SequenceNumber = persistentRepresentation.SequenceNr,
+                                PersistenceId = persistentRepresentation.PersistenceId,
+                                Manifest = persistentRepresentation.Manifest,
+                                WriterGuid = persistentRepresentation.WriterGuid,
+                                Timestamp = timestamp,
+                                Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
+                                Payload = payload,
+                                DocumentType = EventDocument.DocumentTypes.Event,
+                                HighestSequenceNumber = atomicWrite.HighestSequenceNr,
+                                IsSoftDeleted = persistentRepresentation.IsDeleted
+                            });
+
+                            if (persistentRepresentation.SequenceNr == 0)
+                            {
+                                NotifyNewPersistenceIdAdded(persistentRepresentation.PersistenceId);
+                            }
+
+                            //if (persistentRepresentation.Payload is Tagged tagged)
+                            //{
+                            //    allTags.AddRange(tagged.Tags);
+
+                            //    foreach (var tag in tagged.Tags)
+                            //    {
+                            //        _journalApi.CreateJournalItem(new JournalItemDto
+                            //        {
+                            //            GroupKey = EventDocument.GetTagGroupKey(tag, persistentRepresentation.PersistenceId),
+                            //            SequenceNumber = persistentRepresentation.SequenceNr,
+                            //            PersistenceId = persistentRepresentation.PersistenceId,
+                            //            Timestamp = timestamp,
+                            //            DocumentType = EventDocument.DocumentTypes.TagRef,
+                            //            Tag = tag,
+                            //            HighestSequenceNumber = atomicWrite.HighestSequenceNr,
+                            //            Manifest = persistentRepresentation.Manifest,
+                            //            Payload = payload,
+                            //            Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
+                            //            WriterGuid = persistentRepresentation.WriterGuid,
+                            //            IsSoftDeleted = persistentRepresentation.IsDeleted
+                            //        });
+                            //    }
+                            //}
+                        }
+
+                        //_journalApi.CreateJournalItem(new JournalItemDto
+                        //{
+                        //    GroupKey = EventDocument.GetHighestSequenceNumberGroupKey(groupedPersistentRepresentation.Key),
+                        //    SequenceNumber = 0L,
+                        //    HighestSequenceNumber = atomicWrite.HighestSequenceNr,
+                        //    DocumentType = EventDocument.DocumentTypes.HighestSequenceNumber,
+                        //    PersistenceId = groupedPersistentRepresentation.Key,
+                        //    IsSoftDeleted = groupedPersistentRepresentation.Any(x => x.IsDeleted)
+                        //});
                     }
 
                     results.Add(null);
@@ -143,19 +169,21 @@ namespace Akka.Persistence.VeloxDb.Journal
             }
 
             var documentTags = allTags.Distinct().ToImmutableList();
-
             if (_tagSubscribers.Any() && documentTags.Any())
             {
                 foreach (var tag in documentTags)
+                {
                     NotifyTagChange(tag);
+                }
             }
 
             return await Task.FromResult(results.Any(x => x != null) ? results.ToImmutableList() : null);
-        }
+        }        
 
         protected override async Task DeleteMessagesToAsync(string persistenceId, long toSequenceNr)
         {
-            _journalApi.DeleteJournalItemsTo(persistenceId, long.MinValue, toSequenceNr);
+            _journalApi.DeleteJournalItemsTo(persistenceId, toSequenceNr);
+
             await Task.CompletedTask;
         }
 
@@ -195,29 +223,25 @@ namespace Akka.Persistence.VeloxDb.Journal
             }
 
             var maxOrdering = 0L;
-            var journalItems = _journalApi.GetTaggedJournalItems(replay.Tag, replay.FromOffset + 1, replay.ToOffset, replay.Max);
-            if (journalItems is null)
+            var journalItems = _journalApi.GetTaggedJournalItems(replay.Tag, replay.FromOffset + 1, replay.ToOffset);
+            if (journalItems is null || journalItems.Count == 0)
             {
                 return await Task.FromResult(maxOrdering);
             }
 
             var replayedItems = 0L;
-            foreach (var result in journalItems.Select(x => new EventDocument(x)).OrderBy(x => x.Timestamp))
+            foreach (var journalItem in journalItems)
             {
                 if (replayedItems >= replay.Max)
                 {
                     await Task.FromResult(maxOrdering);
                 }
 
-                _log.Debug("Sending replayed message: persistenceId:{0} - sequenceNr:{1}", result.PersistenceId, result.SequenceNumber);
+                _log.Debug("Sending replayed message: persistenceId:{0} - sequenceNr:{1}", journalItem.PersistenceId, journalItem.SequenceNumber);
 
-                replay.ReplyTo.Tell(new ReplayedTaggedMessage(
-                        result.ToPersistent(_actorSystem),
-                        replay.Tag,
-                        result.Timestamp),
-                    ActorRefs.NoSender);
+                replay.ReplyTo.Tell(new ReplayedTaggedMessage(EventDocument.ToPersistent(journalItem, _actorSystem), replay.Tag, journalItem.Timestamp), ActorRefs.NoSender);
 
-                maxOrdering = Math.Max(maxOrdering, result.Timestamp);
+                maxOrdering = Math.Max(maxOrdering, journalItem.Timestamp);
 
                 replayedItems++;
             }
@@ -256,6 +280,8 @@ namespace Akka.Persistence.VeloxDb.Journal
 
             var persistenceIds = _journalApi.GetPersistenceIds();
             subscriber.Tell(new CurrentPersistenceIdsChunk(persistenceIds.ToImmutableList(), LastChunk: true));
+
+            await Task.CompletedTask;
         }
 
         private void NotifyTagChange(string tag)

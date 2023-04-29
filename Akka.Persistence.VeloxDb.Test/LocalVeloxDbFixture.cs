@@ -1,7 +1,9 @@
+using Akka.Persistence.VeloxDb.Journal;
 using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using VeloxDB.Client;
 
 namespace Akka.Persistence.VeloxDb.Test
 {
@@ -19,7 +21,7 @@ namespace Akka.Persistence.VeloxDb.Test
 
             var assemblyName = Assembly.GetExecutingAssembly().GetName().Name;
             var index = Directory.GetCurrentDirectory().IndexOf(assemblyName);
-            var pathBase = Directory.GetCurrentDirectory().Substring(0, index);
+            var pathBase = Directory.GetCurrentDirectory()[..index];
             var dbProjectPath = Path.Combine(pathBase, "Akka.Persistence.VeloxDb.Db");
 
             _process = new Process
@@ -28,7 +30,7 @@ namespace Akka.Persistence.VeloxDb.Test
                 {
                     FileName = "dotnet",
                     Arguments = "run",
-                    UseShellExecute = false,
+                    UseShellExecute = true,
                     WorkingDirectory = dbProjectPath
                 }
             };
@@ -38,7 +40,14 @@ namespace Akka.Persistence.VeloxDb.Test
 
         public void Dispose()
         {
+            var connectionStringParams = new ConnectionStringParams();
+            connectionStringParams.AddAddress(Address);
+
+            var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionStringParams.GenerateConnectionString());
+            journalApi.Flush();
+
             _process?.Kill();
+            //_process?.WaitForExit();
             _process?.Dispose();
         }
     }

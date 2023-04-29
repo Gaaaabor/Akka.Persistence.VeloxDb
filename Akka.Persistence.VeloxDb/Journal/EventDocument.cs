@@ -7,34 +7,22 @@ namespace Akka.Persistence.VeloxDb.Journal
 {
     public class EventDocument
     {
-        private readonly JournalItemDto _journalItem;
-
-        public string PersistenceId => _journalItem.PersistenceId ?? default;
-        public long SequenceNumber => _journalItem.SequenceNumber;
-        public string Manifest => _journalItem.Manifest ?? default;
-        public string WriterGuid => _journalItem.WriterGuid ?? default;
-        public long Timestamp => _journalItem.Timestamp;
-        public long HighestSequenceNumber => _journalItem.HighestSequenceNumber;
-        public Type Type => Type.GetType(_journalItem.Type ?? "System.Object");
-
-        public EventDocument(JournalItemDto journalItem)
+        public static IPersistentRepresentation ToPersistent(JournalItemDto journalItem, ActorSystem system)
         {
-            _journalItem = journalItem;
-        }
-
-        public IPersistentRepresentation ToPersistent(ActorSystem system)
-        {
-            var serializer = system.Serialization.FindSerializerFor(Type);
-            var payload = serializer.FromBinary(_journalItem.Payload ?? default, Type);
+            var type = Type.GetType(journalItem.Type ?? "System.Object");
+            var serializer = system.Serialization.FindSerializerFor(type);
+            var rawPayload = journalItem.Payload != null ? journalItem.Payload.ToArray() : default;
+            var payload = serializer.FromBinary(rawPayload, type) ?? new object();
 
             return new Persistent(
-                payload ?? new object(),
-                SequenceNumber,
-                PersistenceId,
-                Manifest,
+                payload: payload,
+                sequenceNr: journalItem.SequenceNumber,
+                persistenceId: journalItem.PersistenceId,
+                manifest: journalItem.Manifest,
+                isDeleted: journalItem.IsSoftDeleted,                
                 sender: ActorRefs.NoSender,
-                writerGuid: WriterGuid,
-                timestamp: Timestamp);
+                writerGuid: journalItem.WriterGuid,
+                timestamp: journalItem.Timestamp);
         }
 
         public static (IImmutableList<JournalItemDto> docs, IImmutableList<string> tags) ToDocument(IPersistentRepresentation persistentRepresentation, ActorSystem system)
