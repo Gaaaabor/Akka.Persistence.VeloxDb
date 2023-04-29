@@ -5,7 +5,7 @@ using System.Collections.Immutable;
 
 namespace Akka.Persistence.VeloxDb.Journal
 {
-    public class EventDocument
+    public class JournalMapper
     {
         public static IPersistentRepresentation ToPersistent(JournalItemDto journalItem, ActorSystem system)
         {

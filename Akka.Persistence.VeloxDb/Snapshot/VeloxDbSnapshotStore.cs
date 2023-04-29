@@ -7,21 +7,14 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 {
     public class VeloxDbSnapshotStore : SnapshotStore, IWithUnboundedStash
     {
-        public static class Events
-        {
-            public sealed class Initialized
-            {
-                public static readonly Initialized Instance = new();
-                private Initialized() { }
-            }
-        }
-
         private readonly ActorSystem _actorSystem;
         private ISnapshotStoreItemApi _snapshotStoreItemApi;
         private readonly VeloxDbSnapshotStoreSettings _settings;
         private readonly ILoggingAdapter _log = Context.GetLogger();
 
-        public VeloxDbSnapshotStore(Config? config = null)
+        public IStash Stash { get; set; }
+
+        public VeloxDbSnapshotStore(Config config = null)
         {
             _actorSystem = Context.System;
 
@@ -32,21 +25,19 @@ namespace Akka.Persistence.VeloxDb.Snapshot
             _snapshotStoreItemApi = VeloxDbSetup.InitSnapshotStoreItemApi(_settings);
         }
 
-        protected override void PreStart()
+        protected override bool ReceivePluginInternal(object message)
         {
-            base.PreStart();
+            return base.ReceivePluginInternal(message);
         }
 
-        public IStash? Stash { get; set; }
-
-        protected override async Task<SelectedSnapshot?> LoadAsync(string persistenceId, SnapshotSelectionCriteria criteria)
+        protected override async Task<SelectedSnapshot> LoadAsync(string persistenceId, SnapshotSelectionCriteria criteria)
         {
             var fromTimestamp = (criteria.MinTimestamp ?? DateTime.MinValue).Ticks;
             var toTimestamp = criteria.MaxTimeStamp.Ticks;
-            var snapshot = _snapshotStoreItemApi.GetLatestSnapshotItem(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
+            var snapshot = _snapshotStoreItemApi.GetLatestSnapshotItemRange(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
             if (snapshot != null)
             {
-                var result = new SnapshotDocument(snapshot).ToSelectedSnapshot(_actorSystem);
+                var result = SnapshotMapper.ToSelectedSnapshot(snapshot, _actorSystem);
                 return await Task.FromResult(result);
             }
 
@@ -55,19 +46,21 @@ namespace Akka.Persistence.VeloxDb.Snapshot
 
         protected override async Task SaveAsync(SnapshotMetadata metadata, object snapshot)
         {
-            _snapshotStoreItemApi.CreateSnapshotItem(SnapshotDocument.ToDocument(metadata, snapshot, _actorSystem));
+            _snapshotStoreItemApi.CreateSnapshotItem(SnapshotMapper.ToSnapshotStoreItemDto(metadata, snapshot, _actorSystem));
             await Task.CompletedTask;
         }
 
         protected override async Task DeleteAsync(SnapshotMetadata metadata)
         {
-            _snapshotStoreItemApi.DeleteSnapshotItemsTo(metadata.PersistenceId, 0, metadata.SequenceNr);
+            _snapshotStoreItemApi.DeleteSnapshotItem(metadata.PersistenceId, metadata.SequenceNr, metadata.Timestamp.Ticks);
             await Task.CompletedTask;
         }
 
         protected override async Task DeleteAsync(string persistenceId, SnapshotSelectionCriteria criteria)
         {
-            _snapshotStoreItemApi.DeleteSnapshotItemsTo(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr);
+            var fromTimestamp = (criteria.MinTimestamp ?? DateTime.MinValue).Ticks;
+            var toTimestamp = criteria.MaxTimeStamp.Ticks;
+            _snapshotStoreItemApi.DeleteSnapshotItemsRange(persistenceId, criteria.MinSequenceNr, criteria.MaxSequenceNr, fromTimestamp, toTimestamp);
             await Task.CompletedTask;
         }
     }

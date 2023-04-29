@@ -18,6 +18,9 @@ namespace Akka.Persistence.VeloxDb.Db
         public abstract string Type { get; set; }
 
         [DatabaseProperty]
-        public abstract string Payload { get; set; }
+        public abstract DatabaseArray<byte> Payload { get; set; }
+
+        [DatabaseProperty]
+        public abstract bool IsSoftDeleted { get; set; }
     }
 }

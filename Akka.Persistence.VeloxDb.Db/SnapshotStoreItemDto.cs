@@ -7,6 +7,6 @@
         public long SequenceNumber { get; set; }
         public long Timestamp { get; set; }
         public string Type { get; set; }
-        public string Payload { get; set; }
+        public byte[] Payload { get; set; }
     }
 }

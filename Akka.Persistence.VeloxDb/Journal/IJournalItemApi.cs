@@ -7,7 +7,7 @@ namespace Akka.Persistence.VeloxDb.Journal
     public interface IJournalItemApi
     {
         [DbAPIOperation]
-        string CreateJournalItem(JournalItemDto journalItemDto);
+        void CreateJournalItem(JournalItemDto journalItemDto);
 
         [DbAPIOperation]
         long GetHighestSequenceNumber(string persistenceId, long fromSequenceNr);

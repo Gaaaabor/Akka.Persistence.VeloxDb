@@ -55,7 +55,7 @@ namespace Akka.Persistence.VeloxDb.Journal
             var replayMessages = _journalApi.GetJournalItemsRange(persistenceId, fromSequenceNr, toSequenceNr);
             foreach (var replayMessage in replayMessages)
             {
-                recoveryCallback(EventDocument.ToPersistent(replayMessage, _actorSystem));
+                recoveryCallback(JournalMapper.ToPersistent(replayMessage, _actorSystem));
                 count++;
 
                 if (count == max)
@@ -92,8 +92,6 @@ namespace Akka.Persistence.VeloxDb.Journal
                         .GroupBy(x => x.PersistenceId)
                         .ToList();
 
-                    ;
-
                     foreach (var groupedPersistentRepresentation in groupedPersistentRepresentations)
                     {
                         var journalItems = new List<JournalItemDto>();
@@ -106,7 +104,7 @@ namespace Akka.Persistence.VeloxDb.Journal
 
                             _journalApi.CreateJournalItem(new JournalItemDto
                             {
-                                GroupKey = EventDocument.GetEventGroupKey(persistentRepresentation.PersistenceId),
+                                GroupKey = JournalMapper.GetEventGroupKey(persistentRepresentation.PersistenceId),
                                 SequenceNumber = persistentRepresentation.SequenceNr,
                                 PersistenceId = persistentRepresentation.PersistenceId,
                                 Manifest = persistentRepresentation.Manifest,
@@ -114,7 +112,7 @@ namespace Akka.Persistence.VeloxDb.Journal
                                 Timestamp = timestamp,
                                 Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
                                 Payload = payload,
-                                DocumentType = EventDocument.DocumentTypes.Event,
+                                DocumentType = JournalMapper.DocumentTypes.Event,
                                 HighestSequenceNumber = atomicWrite.HighestSequenceNr,
                                 IsSoftDeleted = persistentRepresentation.IsDeleted
                             });
@@ -178,7 +176,7 @@ namespace Akka.Persistence.VeloxDb.Journal
             }
 
             return await Task.FromResult(results.Any(x => x != null) ? results.ToImmutableList() : null);
-        }        
+        }
 
         protected override async Task DeleteMessagesToAsync(string persistenceId, long toSequenceNr)
         {
@@ -239,7 +237,7 @@ namespace Akka.Persistence.VeloxDb.Journal
 
                 _log.Debug("Sending replayed message: persistenceId:{0} - sequenceNr:{1}", journalItem.PersistenceId, journalItem.SequenceNumber);
 
-                replay.ReplyTo.Tell(new ReplayedTaggedMessage(EventDocument.ToPersistent(journalItem, _actorSystem), replay.Tag, journalItem.Timestamp), ActorRefs.NoSender);
+                replay.ReplyTo.Tell(new ReplayedTaggedMessage(JournalMapper.ToPersistent(journalItem, _actorSystem), replay.Tag, journalItem.Timestamp), ActorRefs.NoSender);
 
                 maxOrdering = Math.Max(maxOrdering, journalItem.Timestamp);
 

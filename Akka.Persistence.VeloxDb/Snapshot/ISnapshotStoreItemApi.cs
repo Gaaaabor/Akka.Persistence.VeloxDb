@@ -7,12 +7,18 @@ namespace Akka.Persistence.VeloxDb.Snapshot
     public interface ISnapshotStoreItemApi
     {
         [DbAPIOperation]
-        string CreateSnapshotItem(SnapshotStoreItemDto snapshotStoreItemDto);
-
-        [DbAPIOperation(OperationType = DbAPIOperationType.Read)]
-        SnapshotStoreItemDto GetLatestSnapshotItem(string persistenceId, long minSequenceNr, long maxSequenceNr, long fromTimestamp, long toTimestamp);
+        void CreateSnapshotItem(SnapshotStoreItemDto snapshotStoreItemDto);
 
         [DbAPIOperation]
-        void DeleteSnapshotItemsTo(string persistenceId, long fromSequenceNr, long toSequenceNr);
+        SnapshotStoreItemDto GetLatestSnapshotItemRange(string persistenceId, long fromSequenceNumber, long toSequenceNumber, long fromTimestamp, long toTimestamp);
+
+        [DbAPIOperation]
+        void DeleteSnapshotItem(string persistenceId, long sequenceNumber, long timestamp);
+
+        [DbAPIOperation]
+        void DeleteSnapshotItemsRange(string persistenceId, long fromSequenceNumber, long toSequenceNumber, long fromTimestamp, long toTimestamp);
+
+        [DbAPIOperation]
+        void Flush();
     }
 }

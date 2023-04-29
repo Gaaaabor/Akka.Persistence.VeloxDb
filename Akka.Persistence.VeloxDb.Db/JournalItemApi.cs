@@ -9,7 +9,7 @@ namespace Akka.Persistence.VeloxDb.Db
     public class JournalItemApi
     {
         [DbAPIOperation]
-        public string CreateJournalItem(ObjectModel objectModel, JournalItemDto journalItemDto)
+        public void CreateJournalItem(ObjectModel objectModel, JournalItemDto journalItemDto)
         {
             var journalItem = objectModel.CreateObject<JournalItem>();
 
@@ -28,8 +28,6 @@ namespace Akka.Persistence.VeloxDb.Db
             objectModel.ApplyChanges();
 
             APITrace.Warning("CreateJournalItem PersistenceId: {0}, GroupKey: {1}", journalItem.PersistenceId, journalItem.GroupKey);
-
-            return journalItem.PersistenceId;
         }
 
         [DbAPIOperation]

@@ -1,58 +1,25 @@
 using Akka.Actor;
 using Akka.Persistence.VeloxDb.Db;
-using System.Text;
 
 namespace Akka.Persistence.VeloxDb.Snapshot
 {
-    public class SnapshotDocument
+    public class SnapshotMapper
     {
-        private readonly SnapshotStoreItemDto _snapshotItem;
-
-        public SnapshotDocument(SnapshotStoreItemDto snapshotItem)
+        public static SelectedSnapshot ToSelectedSnapshot(SnapshotStoreItemDto snapshotStoreItemDto, ActorSystem system)
         {
-            _snapshotItem = snapshotItem;
+            var type = Type.GetType(snapshotStoreItemDto.Type ?? "System.Object");
+            var serializer = system.Serialization.FindSerializerForType(type);
+            var payload = serializer.FromBinary(snapshotStoreItemDto.Payload, type);
+
+            var snapshotMetadata = new SnapshotMetadata(snapshotStoreItemDto.PersistenceId, snapshotStoreItemDto.SequenceNumber, new DateTime(snapshotStoreItemDto.Timestamp));
+            return new SelectedSnapshot(snapshotMetadata, payload);
         }
 
-        public string? PersistenceId => _snapshotItem.PersistenceId;
-
-        public long SequenceNumber => _snapshotItem.SequenceNumber;
-
-        public long Timestamp => _snapshotItem.Timestamp;
-
-        public Type? Type => Type.GetType(_snapshotItem.Type ?? "System.Object");
-
-        public SelectedSnapshot ToSelectedSnapshot(ActorSystem system)
-        {
-            object payload;
-            if (Type == typeof(string))
-            {
-                payload = _snapshotItem.Payload;
-            }
-            else
-            {
-                var serializer = system.Serialization.FindSerializerForType(Type);
-                var binaryPayload = Encoding.UTF8.GetBytes(_snapshotItem.Payload);
-                payload = serializer.FromBinary(binaryPayload, Type);
-            }
-
-            return new SelectedSnapshot(new SnapshotMetadata(PersistenceId, SequenceNumber, new DateTime(Timestamp)), payload);
-        }
-
-        public static SnapshotStoreItemDto ToDocument(SnapshotMetadata metadata, object snapshot, ActorSystem system)
+        public static SnapshotStoreItemDto ToSnapshotStoreItemDto(SnapshotMetadata metadata, object snapshot, ActorSystem system)
         {
             var type = snapshot.GetType();
-
-            string payload;
-            if (type == typeof(string))
-            {
-                payload = snapshot.ToString();
-            }
-            else
-            {
-                var serializer = system.Serialization.FindSerializerForType(type);
-                var binaryPayload = serializer.ToBinary(snapshot);
-                payload = Encoding.UTF8.GetString(binaryPayload);
-            }
+            var serializer = system.Serialization.FindSerializerForType(type);
+            var payload = serializer.ToBinary(snapshot);
 
             return new SnapshotStoreItemDto
             {
@@ -60,17 +27,8 @@ namespace Akka.Persistence.VeloxDb.Snapshot
                 SequenceNumber = metadata.SequenceNr,
                 Timestamp = metadata.Timestamp.Ticks,
                 Type = $"{type.FullName}, {type.Assembly.GetName().Name}",
-                Payload = payload                
+                Payload = payload
             };
-        }
-
-        public static class Keys
-        {
-            public static string PersistenceId = nameof(PersistenceId);
-            public static string SequenceNumber = nameof(SequenceNumber);
-            public static string Timestamp = nameof(Timestamp);
-            public static string Type = nameof(Type);
-            public static string Payload = nameof(Payload);
         }
     }
 }

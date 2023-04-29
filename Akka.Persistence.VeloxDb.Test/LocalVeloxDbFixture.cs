@@ -1,4 +1,5 @@
 using Akka.Persistence.VeloxDb.Journal;
+using Akka.Persistence.VeloxDb.Snapshot;
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -42,12 +43,15 @@ namespace Akka.Persistence.VeloxDb.Test
         {
             var connectionStringParams = new ConnectionStringParams();
             connectionStringParams.AddAddress(Address);
+            var connectionString = connectionStringParams.GenerateConnectionString();
 
-            var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionStringParams.GenerateConnectionString());
+            var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionString);
             journalApi.Flush();
 
-            _process?.Kill();
-            //_process?.WaitForExit();
+            var snapshotStoreApi = ConnectionFactory.Get<ISnapshotStoreItemApi>(connectionString);
+            snapshotStoreApi.Flush();
+
+            _process?.Kill(true);
             _process?.Dispose();
         }
     }
