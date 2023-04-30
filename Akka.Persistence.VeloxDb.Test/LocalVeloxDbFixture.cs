@@ -36,7 +36,20 @@ namespace Akka.Persistence.VeloxDb.Test
                 }
             };
 
-            _process.Start();
+            var isStarted =_process.Start();
+
+            if (isStarted)
+            {
+                var connectionStringParams = new ConnectionStringParams();
+                connectionStringParams.AddAddress(Address);
+                var connectionString = connectionStringParams.GenerateConnectionString();
+
+                var journalApi = ConnectionFactory.Get<IJournalItemApi>(connectionString);
+                journalApi.Flush();
+
+                var snapshotStoreApi = ConnectionFactory.Get<ISnapshotStoreItemApi>(connectionString);
+                snapshotStoreApi.Flush(); 
+            }
         }
 
         public void Dispose()

@@ -1,4 +1,5 @@
 ﻿using Akka.Persistence.VeloxDb.Db;
+using VeloxDB.ObjectInterface;
 using VeloxDB.Protocol;
 
 namespace Akka.Persistence.VeloxDb.Journal
@@ -10,10 +11,13 @@ namespace Akka.Persistence.VeloxDb.Journal
         void CreateJournalItem(JournalItemDto journalItemDto);
 
         [DbAPIOperation]
+        void CreateJournalItemBatch(List<JournalItemDto> journalItemDtos);
+
+        [DbAPIOperation]
         long GetHighestSequenceNumber(string persistenceId, long fromSequenceNr);
 
         [DbAPIOperation]
-        List<JournalItemDto> GetJournalItemsRange(string persistenceId, long fromSequenceNr, long toSequenceNr);        
+        List<JournalItemDto> GetJournalItemsRange(string persistenceId, long fromSequenceNr, long toSequenceNr, string groupKey);
 
         [DbAPIOperation]
         void DeleteJournalItemsTo(string persistenceId, long toSequenceNr);

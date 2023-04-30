@@ -14,16 +14,16 @@ namespace Akka.Persistence.VeloxDb.Db
             var journalItem = objectModel.CreateObject<JournalItem>();
 
             journalItem.GroupKey = journalItemDto.GroupKey;
+            journalItem.DocumentType = journalItemDto.DocumentType;
+            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
+            journalItem.Manifest = journalItemDto.Manifest;
+            journalItem.Payload = DatabaseArray<byte>.Create(journalItemDto.Payload ?? Array.Empty<byte>());
             journalItem.PersistenceId = journalItemDto.PersistenceId;
             journalItem.SequenceNumber = journalItemDto.SequenceNumber;
-            journalItem.DocumentType = journalItemDto.DocumentType;
-            journalItem.Manifest = journalItemDto.Manifest;
-            journalItem.WriterGuid = journalItemDto.WriterGuid;
+            journalItem.Tag = journalItemDto.Tag;
             journalItem.Timestamp = journalItemDto.Timestamp;
             journalItem.Type = journalItemDto.Type;
-            journalItem.Payload = DatabaseArray<byte>.Create(journalItemDto.Payload ?? Array.Empty<byte>());
-            journalItem.Tag = journalItemDto.Tag;
-            journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
+            journalItem.WriterGuid = journalItemDto.WriterGuid;
 
             objectModel.ApplyChanges();
 
@@ -31,17 +31,44 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation]
+        public void CreateJournalItemBatch(ObjectModel objectModel, List<JournalItemDto> journalItemDtos)
+        {
+            foreach (var journalItemDto in journalItemDtos)
+            {
+                var journalItem = objectModel.CreateObject<JournalItem>();
+
+                journalItem.GroupKey = journalItemDto.GroupKey;
+                journalItem.DocumentType = journalItemDto.DocumentType;
+                journalItem.HighestSequenceNumber = journalItemDto.HighestSequenceNumber;
+                journalItem.Manifest = journalItemDto.Manifest;
+                journalItem.Payload = DatabaseArray<byte>.Create(journalItemDto.Payload ?? Array.Empty<byte>());
+                journalItem.PersistenceId = journalItemDto.PersistenceId;
+                journalItem.SequenceNumber = journalItemDto.SequenceNumber;
+                journalItem.Tag = journalItemDto.Tag;
+                journalItem.Timestamp = journalItemDto.Timestamp;
+                journalItem.Type = journalItemDto.Type;
+                journalItem.WriterGuid = journalItemDto.WriterGuid;
+
+                APITrace.Warning("CreateJournalItem PersistenceId: {0}, GroupKey: {1}", journalItem.PersistenceId, journalItem.GroupKey);
+            }
+
+            objectModel.ApplyChanges();
+        }
+
+        [DbAPIOperation]
         public long GetHighestSequenceNumber(ObjectModel objectModel, string persistenceId, long fromSequenceNr)
         {
             var items = objectModel
                 .GetAllObjects<JournalItem>()
-                .Where(x => x.PersistenceId == persistenceId && fromSequenceNr <= x.SequenceNumber)
+                .Where(x =>
+                    x.PersistenceId == persistenceId &&
+                    fromSequenceNr <= x.SequenceNumber)
                 .ToList();
 
             long highestSequenceNumber = 0L;
             if (items != null && items.Any())
             {
-                highestSequenceNumber = items.Max(x => x.SequenceNumber);
+                highestSequenceNumber = items.Max(x => x.HighestSequenceNumber);
             }
 
             APITrace.Warning("GetHighestSequenceNumber {0}", highestSequenceNumber);
@@ -50,27 +77,34 @@ namespace Akka.Persistence.VeloxDb.Db
         }
 
         [DbAPIOperation]
-        public List<JournalItemDto> GetJournalItemsRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr)
+        public List<JournalItemDto> GetJournalItemsRange(ObjectModel objectModel, string persistenceId, long fromSequenceNr, long toSequenceNr, string groupKey)
         {
             var journalItems = objectModel.GetAllObjects<JournalItem>()
-                .Where(x => x.PersistenceId == persistenceId && fromSequenceNr <= x.SequenceNumber && x.SequenceNumber <= toSequenceNr && !x.IsDeleted && !x.IsSoftDeleted)
-                .OrderBy(x => x.SequenceNumber)
+                .Where(x =>
+                    x.GroupKey == groupKey &&
+                    x.PersistenceId == persistenceId &&
+                    fromSequenceNr <= x.SequenceNumber &&
+                    x.SequenceNumber <= toSequenceNr &&
+                    x.DocumentType == "Event" &&
+                    !x.IsDeleted &&
+                    !x.IsSoftDeleted)
                 .Select(x => new JournalItemDto
                 {
                     Id = x.Id,
+                    DocumentType = x.DocumentType,
                     GroupKey = x.GroupKey,
+                    HighestSequenceNumber = x.HighestSequenceNumber,
+                    IsSoftDeleted = x.IsSoftDeleted || x.IsDeleted,
+                    Manifest = x.Manifest,
+                    Payload = x.Payload?.ToArray() ?? Array.Empty<byte>(),
                     PersistenceId = x.PersistenceId,
                     SequenceNumber = x.SequenceNumber,
-                    DocumentType = x.DocumentType,
-                    Manifest = x.Manifest,
-                    WriterGuid = x.WriterGuid,
+                    Tag = x.Tag,
                     Timestamp = x.Timestamp,
                     Type = x.Type,
-                    Payload = x.Payload?.ToArray() ?? Array.Empty<byte>(),
-                    Tag = x.Tag,
-                    HighestSequenceNumber = x.HighestSequenceNumber,
-                    IsSoftDeleted = x.IsSoftDeleted || x.IsDeleted
+                    WriterGuid = x.WriterGuid
                 })
+                .OrderBy(x => x.Timestamp)
                 .ToList();
 
             return journalItems ?? new List<JournalItemDto>();
@@ -81,7 +115,7 @@ namespace Akka.Persistence.VeloxDb.Db
         {
             var journalItems = objectModel
                 .GetAllObjects<JournalItem>()
-                .Where(x => x.PersistenceId == persistenceId && x.SequenceNumber <= toSequenceNr);
+                .Where(x => x.DocumentType == "Event" && x.PersistenceId == persistenceId && x.SequenceNumber <= toSequenceNr);
 
             int deleteCount = 0;
             foreach (var journalItem in journalItems)
@@ -133,32 +167,31 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation]
         public List<JournalItemDto> GetTaggedJournalItems(ObjectModel objectModel, string tag, long fromOffset, long toOffset)
         {
-            var tags = objectModel
-                .GetAllObjects<JournalItem>()
-                .Where(x => x.Tag == tag && fromOffset <= x.Timestamp && x.Timestamp <= toOffset && !x.IsSoftDeleted)
-                .OrderBy(x => x.Timestamp)
-                .Select(x => $"tag-{x.Tag}-{x.PersistenceId}")
-                .ToList();
-
             var journalItems = objectModel.GetAllObjects<JournalItem>()
-                .Where(x => !x.IsSoftDeleted)
-                .Join(tags, x => x.GroupKey, y => y, (x, _) => x)
+                .Where(x =>
+                    x.Tag == tag &&
+                    fromOffset <= x.Timestamp &&
+                    x.Timestamp <= toOffset &&
+                    x.DocumentType == "TagRef" &&
+                    !x.IsDeleted &&
+                    !x.IsSoftDeleted)
                 .Select(x => new JournalItemDto
                 {
-                    Id = x.Id,
+                    DocumentType = x.DocumentType,
                     GroupKey = x.GroupKey,
+                    HighestSequenceNumber = x.HighestSequenceNumber,
+                    Id = x.Id,
+                    IsSoftDeleted = x.IsSoftDeleted || x.IsDeleted,
+                    Manifest = x.Manifest,
+                    Payload = x.Payload?.ToArray() ?? Array.Empty<byte>(),
                     PersistenceId = x.PersistenceId,
                     SequenceNumber = x.SequenceNumber,
-                    DocumentType = x.DocumentType,
-                    Manifest = x.Manifest,
-                    WriterGuid = x.WriterGuid,
+                    Tag = x.Tag,
                     Timestamp = x.Timestamp,
                     Type = x.Type,
-                    Payload = x.Payload?.ToArray() ?? Array.Empty<byte>(),
-                    Tag = x.Tag,
-                    HighestSequenceNumber = x.HighestSequenceNumber,
-                    IsSoftDeleted = x.IsSoftDeleted || x.IsDeleted
-                });
+                    WriterGuid = x.WriterGuid
+                })
+                .OrderBy(x => x.Timestamp);
 
             return journalItems.ToList();
         }
@@ -166,10 +199,12 @@ namespace Akka.Persistence.VeloxDb.Db
         [DbAPIOperation]
         public List<string> GetPersistenceIds(ObjectModel objectModel)
         {
-            var highestSequenceNumberPropertyName = nameof(JournalItem.HighestSequenceNumber);
-
             var persistenceIds = objectModel.GetAllObjects<JournalItem>()
-                .Where(x => x.DocumentType == highestSequenceNumberPropertyName && !string.IsNullOrEmpty(x.PersistenceId) && !x.IsSoftDeleted)
+                .Where(x =>
+                    x.DocumentType == "HighestSequenceNumber" &&
+                    !string.IsNullOrEmpty(x.PersistenceId) &&
+                    !x.IsDeleted &&
+                    !x.IsSoftDeleted)
                 .Select(x => x.PersistenceId)
                 .ToList();
 
